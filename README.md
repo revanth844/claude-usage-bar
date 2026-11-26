@@ -102,6 +102,26 @@ empty. **Left-click** runs `clickAction`; the hover tooltip has **Dashboard · T
 Cache · Settings** links (VS Code doesn't support a custom right-click menu on status
 bar items).
 
+## Themes
+
+Pick a status bar preset with `claudeMultiUsage.theme`:
+
+| Theme | Looks like | Notes |
+|---|---|---|
+| `default` | `🐾 .claude ██████▒▒ 52% · 36%` | The original progress bar (5h bar, weekly %). |
+| `compact` | `🐾 .claude ◑ 52% · ◔ 36%` | A pie glyph per window: ○ ◔ ◑ ◕ ● (nearest quarter). |
+| `micro` | `.claude ●` `🕒` | Color only. The dot's color is the usage level; the clock's color is how soon the **limiting** window (5h, or weekly when it's the higher one or maxed) resets: green ≤ 25% of the window left, yellow ≤ 60%, red otherwise. Hover the clock for the countdown. |
+
+(🐾 = the breathing quokka.) Mix and match on top of a preset:
+
+```jsonc
+"claudeMultiUsage.theme": "compact",
+"claudeMultiUsage.icon": "sparkle",        // auto | quokka | sparkle | pulse | robot | dashboard | none
+"claudeMultiUsage.usageStyle": "auto"       // auto | progressBar | pieChart | dot
+```
+
+`auto` means "whatever the theme uses". `showCharacter: false` still hides the icon.
+
 ## Add an account & first login
 
 Open the **dashboard** (tooltip → *Dashboard*), expand **+ Add account**, enter a **name**

@@ -4,6 +4,16 @@ All notable changes to **Claude Multi-Account Usage** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Status bar themes** (`claudeMultiUsage.theme`): `default` (the original progress bar), `compact` (a pie glyph ○ ◔ ◑ ◕ ● per 5h/weekly window), and `micro` (a color-only dot plus a `$(clock)` whose color shows how soon the limiting window resets — green ≤ 25% of the window left, yellow ≤ 60%, red otherwise; hover for the countdown).
+- **`claudeMultiUsage.icon`** — choose the icon before each account: quokka, sparkle, pulse, robot, dashboard, or none (`auto` = the theme's choice).
+- **`claudeMultiUsage.usageStyle`** — draw usage as `progressBar`, `pieChart`, or `dot`, overriding the theme (`auto` = the theme's choice).
+
+### Changed
+- Status bar reset countdowns of a day or more now read `2d 4h` instead of `52h 0m` (tooltip and dashboard unchanged).
+
 ## [0.7.2] — 2026-06-21
 
 ### Changed

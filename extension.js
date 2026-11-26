@@ -13,6 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { dotLabel, ccSwitchUpsert, ccSwitchInstalled } = require('./ccswitch');
+const { resolveTheme, iconFrames, renderUsage } = require('./theme');
 
 const CACHE_FILE = 'vscode-claude-status-cache.json';
 const CREDS_FILE = '.credentials.json';
@@ -165,15 +166,11 @@ function colorFor(util, warnAt, critAt) {
   return new vscode.ThemeColor('charts.green');
 }
 
-/** 0..1 ratio -> whole-cell progress bar ("██████▒▒"). Filled (█) and empty (▒) are
- *  both full-cell block glyphs of the same height, so the whole bar is a clean
- *  rectangle (no ragged half-width edge, no short dotted ░ tail). */
-const FILL = '█', EMPTY = '▒';
-function bar(p, len) {
-  const v = Math.max(0, Math.min(1, typeof p === 'number' ? p : 0));
-  const n = Math.max(0, Math.min(len, Math.round(v * len)));
-  return FILL.repeat(n) + EMPTY.repeat(len - n);
-}
+const LEVEL_COLOR = {
+  ok: new vscode.ThemeColor('charts.green'),
+  warn: new vscode.ThemeColor('charts.yellow'),
+  crit: new vscode.ThemeColor('charts.red'),
+};
 
 /** Colored bar for the HTML tooltip. Every cell is the SAME █ glyph (so all cells
  *  are exactly the same height — a clean rectangle), distinguished only by color:
@@ -317,6 +314,8 @@ class Bar {
   constructor() {
     /** @type {vscode.StatusBarItem[]} */
     this.items = [];
+    /** @type {vscode.StatusBarItem[]} per-account reset clocks (micro theme) */
+    this.clocks = [];
     this.timer = null;
     this.animTimer = null;
     this.animFrame = 0;
@@ -339,10 +338,19 @@ class Bar {
       critAt: c.get('critAt', 0.9),
       barLen: c.get('progressBarLength', 8),
       show7d: c.get('show7d', true),
-      showChar: c.get('showCharacter', true),
+      ...(() => {
+        const look = resolveTheme({
+          theme: c.get('theme', 'default'),
+          icon: c.get('icon', 'auto'),
+          usageStyle: c.get('usageStyle', 'auto'),
+        });
+        const iconF = iconFrames(look.icon); // null → quokka characterFrames
+        const quokka = c.get('characterFrames', FALLBACK_FRAMES.slice());
+        const frames = iconF || (quokka && quokka.length ? quokka : FALLBACK_FRAMES.slice());
+        return { look, showChar: c.get('showCharacter', true) && frames.length > 0, frames };
+      })(),
       anim: c.get('enableAnimation', true),
       animMs: c.get('animationPeriodMs', 2000),
-      frames: c.get('characterFrames', FALLBACK_FRAMES.slice()),
       launchCommand: c.get('launchCommand', 'claude'),
       clickAction: c.get('clickAction', 'refresh'),
       apiFallback: c.get('fetchUsageViaApi', true),
@@ -402,7 +410,9 @@ class Bar {
   /** Recreate one StatusBarItem per account. */
   rebuild() {
     this.items.forEach((i) => i.dispose());
+    this.clocks.forEach((i) => i.dispose());
     this.items = [];
+    this.clocks = [];
     const { accounts, clickAction } = this.config();
     const cmd = clickAction === 'launch' ? 'claudeMultiUsage.launch'
       : clickAction === 'openCache' ? 'claudeMultiUsage.openCache'
@@ -417,6 +427,10 @@ class Bar {
       // Pass the account index as the click argument.
       item.command = { command: cmd, title: 'Claude', arguments: [idx] };
       this.items.push(item);
+      // Reset clock (micro theme) sits just right of its account item.
+      const clock = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100 - idx - 0.5);
+      clock.command = item.command;
+      this.clocks.push(clock);
     });
   }
 
@@ -597,9 +611,9 @@ class Bar {
   }
 
   refresh(force) {
-    const { accounts, warnAt, critAt, show7d, barLen, showChar, frames, apiFallback, apiMinInterval } = this.config();
+    const { accounts, warnAt, critAt, show7d, barLen, showChar, frames, look, apiFallback, apiMinInterval } = this.config();
     this.showChar = showChar;
-    this.frames = frames && frames.length ? frames : FALLBACK_FRAMES.slice();
+    this.frames = frames;
     if (accounts.length !== this.items.length) this.rebuild();
     const deco = (b) =>
       (showChar && this.frames.length ? this.frames[this.animFrame % this.frames.length] + ' ' : '') + b;
@@ -608,6 +622,8 @@ class Bar {
     accounts.forEach((acc, idx) => {
       const item = this.items[idx];
       if (!item) return;
+      const clockItem = this.clocks[idx];
+      if (clockItem) clockItem.hide(); // shown again below only when the theme has a clock
       const dir = expandDir(acc.dir);
       let { data, updatedAt, file, error } = readUsage(dir);
       const label = acc.label || acc.dir;
@@ -659,22 +675,20 @@ class Bar {
       const blocked = data.limitStatus && data.limitStatus !== 'allowed';
       const lvl = Math.max(typeof u5 === 'number' ? u5 : 0, typeof u7 === 'number' ? u7 : 0);
 
-      // Progress-bar form: "personal ██████▒ 52% · 36%". When a window is exhausted
-      // (or blocked) the bar flips to a reset countdown for whichever window is full —
-      // including 7d, even though the bar normally tracks 5h.
-      const u5full = typeof u5 === 'number' && u5 >= 1;
-      const u7full = typeof u7 === 'number' && u7 >= 1;
-      let body;
-      if (blocked || u5full) {
-        body = `${label} ${bar(1, barLen)} 5h reset ${remain(data.reset5hAt)}`;
-      } else if (u7full) {
-        body = `${label} ${bar(1, barLen)} 7d reset ${remain(data.reset7dAt)}`;
-      } else {
-        body = `${label} ${bar(u5, barLen)} ${p5 == null ? '?' : p5 + '%'}`;
-        if (show7d && p7 != null) body += ` · ${p7}%`;
-      }
+      // Body per theme (see theme.js): progress bar / pie / dot. When a window is
+      // exhausted (or blocked) bar & pie flip to that window's reset countdown.
+      const view = renderUsage(label, {
+        u5, u7, p5, p7, blocked, reset5hAt: data.reset5hAt, reset7dAt: data.reset7dAt,
+      }, { usageStyle: look.usageStyle, clock: look.clock, barLen, show7d, warnAt, critAt });
+      const body = view.body;
       item.__body = body;
       item.text = deco(body);
+      if (view.clock && clockItem) {
+        clockItem.text = view.clock.text;
+        clockItem.color = LEVEL_COLOR[view.clock.level];
+        clockItem.tooltip = view.clock.tooltip;
+        clockItem.show();
+      }
       // Color reflects the WORSE of 5h/7d. At critical (>= critAt or blocked) add a bold
       // background badge so a maxed 7d is unmissable even though the bar shows 5h.
       const critical = blocked || lvl >= critAt;
@@ -984,6 +998,7 @@ class Bar {
     if (this.animTimer) clearInterval(this.animTimer);
     if (this.panel) this.panel.dispose();
     this.items.forEach((i) => i.dispose());
+    this.clocks.forEach((i) => i.dispose());
   }
 }
 

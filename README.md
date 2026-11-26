@@ -110,14 +110,14 @@ Pick a status bar preset with `claudeMultiUsage.theme`:
 |---|---|---|
 | `default` | `🐾 .claude ██████▒▒ 52% · 36%` | The original progress bar (5h bar, weekly %). |
 | `compact` | `🐾 .claude ◑ 52% · ◔ 36%` | A pie glyph per window: ○ ◔ ◑ ◕ ● (nearest quarter). |
-| `micro` | `.claude ●` `🕒` | Color only. The dot's color is the usage level; the clock's color is how soon the **limiting** window (5h, or weekly when it's the higher one or maxed) resets: green ≤ 25% of the window left, yellow ≤ 60%, red otherwise. Hover the clock for the countdown. |
+| `micro` | `.claude 🟢🟡 🕒🕒` | Two color dots (5h, weekly usage; 🟢 < `warnAt` ≤ 🟡 < `critAt` ≤ 🔴), then a 5h and a weekly clock. The clocks keep the normal text color until a window **hits its limit**; then they (and the label) turn green when ≤ 25% of that window is left before it resets, yellow ≤ 60%, red otherwise — the more urgent color if both are maxed. Hover for percentages and reset times. |
 
 (🐾 = the breathing quokka.) Mix and match on top of a preset:
 
 ```jsonc
 "claudeMultiUsage.theme": "compact",
 "claudeMultiUsage.icon": "sparkle",        // auto | quokka | sparkle | pulse | robot | dashboard | none
-"claudeMultiUsage.usageStyle": "auto"       // auto | progressBar | pieChart | dot
+"claudeMultiUsage.usageStyle": "auto"       // auto | progressBar | pieChart | dot (dot = two dots + two clocks)
 ```
 
 `auto` means "whatever the theme uses". `showCharacter: false` still hides the icon.

@@ -7,9 +7,9 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- **Status bar themes** (`claudeMultiUsage.theme`): `default` (the original progress bar), `compact` (a pie glyph ○ ◔ ◑ ◕ ● per 5h/weekly window), and `micro` (a color-only dot plus a `$(clock)` whose color shows how soon the limiting window resets — green ≤ 25% of the window left, yellow ≤ 60%, red otherwise; hover for the countdown).
+- **Status bar themes** (`claudeMultiUsage.theme`): `default` (the original progress bar), `compact` (a pie glyph ○ ◔ ◑ ◕ ● per 5h/weekly window), and `micro` (`.claude 🟢🟡 $(clock)$(clock)`: an emoji dot per 5h/weekly window colored by usage, then two clocks that stay the normal text color until a window hits its limit and then turn green/yellow/red by time-to-reset — ≤ 25% of the window left, ≤ 60%, otherwise; hover for details).
 - **`claudeMultiUsage.icon`** — choose the icon before each account: quokka, sparkle, pulse, robot, dashboard, or none (`auto` = the theme's choice).
-- **`claudeMultiUsage.usageStyle`** — draw usage as `progressBar`, `pieChart`, or `dot`, overriding the theme (`auto` = the theme's choice).
+- **`claudeMultiUsage.usageStyle`** — draw usage as `progressBar`, `pieChart`, or `dot` (two dots + two clocks), overriding the theme (`auto` = the theme's choice).
 
 ### Changed
 - Status bar reset countdowns of a day or more now read `2d 4h` instead of `52h 0m` (tooltip and dashboard unchanged).

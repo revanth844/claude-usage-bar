@@ -314,8 +314,6 @@ class Bar {
   constructor() {
     /** @type {vscode.StatusBarItem[]} */
     this.items = [];
-    /** @type {vscode.StatusBarItem[]} per-account reset clocks (micro theme) */
-    this.clocks = [];
     this.timer = null;
     this.animTimer = null;
     this.animFrame = 0;
@@ -410,9 +408,7 @@ class Bar {
   /** Recreate one StatusBarItem per account. */
   rebuild() {
     this.items.forEach((i) => i.dispose());
-    this.clocks.forEach((i) => i.dispose());
     this.items = [];
-    this.clocks = [];
     const { accounts, clickAction } = this.config();
     const cmd = clickAction === 'launch' ? 'claudeMultiUsage.launch'
       : clickAction === 'openCache' ? 'claudeMultiUsage.openCache'
@@ -427,10 +423,6 @@ class Bar {
       // Pass the account index as the click argument.
       item.command = { command: cmd, title: 'Claude', arguments: [idx] };
       this.items.push(item);
-      // Reset clock (micro theme) sits just right of its account item.
-      const clock = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100 - idx - 0.5);
-      clock.command = item.command;
-      this.clocks.push(clock);
     });
   }
 
@@ -622,8 +614,6 @@ class Bar {
     accounts.forEach((acc, idx) => {
       const item = this.items[idx];
       if (!item) return;
-      const clockItem = this.clocks[idx];
-      if (clockItem) clockItem.hide(); // shown again below only when the theme has a clock
       const dir = expandDir(acc.dir);
       let { data, updatedAt, file, error } = readUsage(dir);
       const label = acc.label || acc.dir;
@@ -679,27 +669,28 @@ class Bar {
       // exhausted (or blocked) bar & pie flip to that window's reset countdown.
       const view = renderUsage(label, {
         u5, u7, p5, p7, blocked, reset5hAt: data.reset5hAt, reset7dAt: data.reset7dAt,
-      }, { usageStyle: look.usageStyle, clock: look.clock, barLen, show7d, warnAt, critAt });
+      }, { usageStyle: look.usageStyle, barLen, show7d, warnAt, critAt });
       const body = view.body;
       item.__body = body;
       item.text = deco(body);
-      if (view.clock && clockItem) {
-        clockItem.text = view.clock.text;
-        clockItem.color = LEVEL_COLOR[view.clock.level];
-        clockItem.tooltip = view.clock.tooltip;
-        clockItem.show();
+      if (look.usageStyle === 'dot') {
+        // Emoji dots carry usage; the tile's text color (label + both clocks) stays the
+        // normal color until a window hits its limit, then shows how soon it resets.
+        item.color = view.tint ? LEVEL_COLOR[view.tint] : undefined;
+        item.backgroundColor = undefined;
+      } else {
+        // Color reflects the WORSE of 5h/7d. At critical (>= critAt or blocked) add a bold
+        // background badge so a maxed 7d is unmissable even though the bar shows 5h.
+        const critical = blocked || lvl >= critAt;
+        item.color = critical
+          ? new vscode.ThemeColor('statusBarItem.errorForeground')
+          : colorFor(lvl, warnAt, critAt);
+        // Badge only at critical (a warn-tier badge from ~50% would be too noisy);
+        // the warn tier just tints the text yellow.
+        item.backgroundColor = critical
+          ? new vscode.ThemeColor('statusBarItem.errorBackground')
+          : undefined;
       }
-      // Color reflects the WORSE of 5h/7d. At critical (>= critAt or blocked) add a bold
-      // background badge so a maxed 7d is unmissable even though the bar shows 5h.
-      const critical = blocked || lvl >= critAt;
-      item.color = critical
-        ? new vscode.ThemeColor('statusBarItem.errorForeground')
-        : colorFor(lvl, warnAt, critAt);
-      // Badge only at critical (a warn-tier badge from ~50% would be too noisy);
-      // the warn tier just tints the text yellow.
-      item.backgroundColor = critical
-        ? new vscode.ThemeColor('statusBarItem.errorBackground')
-        : undefined;
 
       const md = new vscode.MarkdownString();
       md.isTrusted = true;
@@ -998,7 +989,6 @@ class Bar {
     if (this.animTimer) clearInterval(this.animTimer);
     if (this.panel) this.panel.dispose();
     this.items.forEach((i) => i.dispose());
-    this.clocks.forEach((i) => i.dispose());
   }
 }
 
